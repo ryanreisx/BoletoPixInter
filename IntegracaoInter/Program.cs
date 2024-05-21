@@ -32,7 +32,7 @@ class Program
     {
         var cobranca = new
         {
-            seuNumero = "165",
+            seuNumero = "180",
             valorNominal = 19.90M,
             dataVencimento = "2024-05-31",
             numDiasAgenda = 30,
@@ -45,7 +45,7 @@ class Program
                 complemento = "Apto 45",
                 cpfCnpj = "24167101000110",
                 tipoPessoa = "JURIDICA",
-                nome = "Landerson Miranda",
+                nome = "Ryan Reis",
                 endereco = "Rua Exemplo",
                 bairro = "Bairro Exemplo",
                 cidade = "Salvador",
@@ -155,17 +155,10 @@ class Program
         }
     }
 
-    public static async Task EmitirCobrancaAsync(string bearerToken, X509Certificate cert, object dadosBoleto, string contaCorrente)
-    {
-        
-    }
-
     public static void SavePdfFromBase64(string base64String, string filePath)
     {
-        // Converte a string Base64 em um array de bytes
         byte[] bytes = Convert.FromBase64String(base64String);
 
-        // Escreve o array de bytes em um arquivo
         System.IO.File.WriteAllBytes(filePath, bytes);
     }
 
