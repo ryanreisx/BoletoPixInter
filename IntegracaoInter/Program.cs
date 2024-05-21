@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Http.Json;
+using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -19,13 +20,21 @@ class Program
 
         //Obtendo bearer token 
         bearerToken = obterBearerToken(permissoes, out client, cert);
-        Console.WriteLine("Bearer Token: {0}", bearerToken);
 
+        var codigoSolicitacao = await EmitirCobrancaAsync(client, bearerToken, cert);
+
+        var cobrancaBase64 = await RecuperarCobrancaPDF(client, bearerToken, cert, codigoSolicitacao);
+
+        SavePdfFromBase64(cobrancaBase64, "C:\\Users\\ryan0\\source\\repos\\IntegracaoInter\\cobranca.pdf");
+
+    }
+    public static async Task<String?> EmitirCobrancaAsync(HttpClient client, string bearerToken, X509Certificate cert)
+    {
         var cobranca = new
         {
-            seuNumero = "71987670057",
-            valorNominal = 100,
-            dataVencimento = "2024-12-31",
+            seuNumero = "165",
+            valorNominal = 19.90M,
+            dataVencimento = "2024-05-31",
             numDiasAgenda = 30,
             pagador = new
             {
@@ -36,7 +45,7 @@ class Program
                 complemento = "Apto 45",
                 cpfCnpj = "24167101000110",
                 tipoPessoa = "JURIDICA",
-                nome = "Ryan Reis dos Santos",
+                nome = "Landerson Miranda",
                 endereco = "Rua Exemplo",
                 bairro = "Bairro Exemplo",
                 cidade = "Salvador",
@@ -45,34 +54,32 @@ class Program
             }
         };
 
-        // Serializando o objeto em JSON
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(cobranca);
         var data = new StringContent(json, Encoding.UTF8, "application/json");
 
         using (HttpClientHandler handler = new HttpClientHandler())
         {
-            // Obtendo o certificado
             handler.ClientCertificates.Add(cert);
 
             using (client = new HttpClient(handler))
             {
-                // Adicionando headers
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearerToken}");
 
-                // Fazendo a requisição POST
                 HttpResponseMessage response = await client.PostAsync("https://cdpj.partners.bancointer.com.br/cobranca/v3/cobrancas", data);
 
                 if (response.IsSuccessStatusCode)
                 {
                     string responseBody = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine("Cobrança emitida com sucesso!");
-                    Console.WriteLine(responseBody);
+                    var responseJson = Newtonsoft.Json.Linq.JObject.Parse(responseBody);
+                    string codigoSolicitacao = responseJson.Value<string>("codigoSolicitacao");
+
+                    return codigoSolicitacao;
                 }
                 else
                 {
                     string errorResponse = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine("Erro ao emitir cobrança:");
-                    Console.WriteLine(errorResponse);
+ 
+                    return null;
                 }
             }
         }
@@ -121,10 +128,45 @@ class Program
         }
     }
 
+    public static async Task<String?> RecuperarCobrancaPDF(HttpClient client, string bearerToken, X509Certificate cert, string codigoSolicitacao)
+    {
+        var clientHandler = new HttpClientHandler();
+        clientHandler.ClientCertificates.Add(cert);
+        clientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
+
+        using (client = new HttpClient(clientHandler))
+        {
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + bearerToken);
+
+            HttpResponseMessage response_pdf = client.GetAsync($"https://cdpj.partners.bancointer.com.br/cobranca/v3/cobrancas/{codigoSolicitacao}/pdf").GetAwaiter().GetResult();
+            if (response_pdf.IsSuccessStatusCode)
+            {
+                string responseBody = await response_pdf.Content.ReadAsStringAsync();
+                var responseJson = Newtonsoft.Json.Linq.JObject.Parse(responseBody);
+                string cobrancaBase64 = responseJson.Value<string>("pdf");
+                return cobrancaBase64;
+            }
+            else
+            {
+                Console.WriteLine("Error, received status code {0}: {1}", response_pdf.StatusCode, response_pdf.ReasonPhrase);
+                return null;
+            }
+        }
+    }
 
     public static async Task EmitirCobrancaAsync(string bearerToken, X509Certificate cert, object dadosBoleto, string contaCorrente)
     {
         
+    }
+
+    public static void SavePdfFromBase64(string base64String, string filePath)
+    {
+        // Converte a string Base64 em um array de bytes
+        byte[] bytes = Convert.FromBase64String(base64String);
+
+        // Escreve o array de bytes em um arquivo
+        System.IO.File.WriteAllBytes(filePath, bytes);
     }
 
     public class TokenModel
